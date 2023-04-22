@@ -31,5 +31,5 @@ public interface APIService {
                             @Field("altitude") double altitude,
                             @Field("speed") double speed,
                             @Field("bearing") double bearing,
-                            @Field("date") String date);
+                            @Field("date") LocalDateTime date);
 }

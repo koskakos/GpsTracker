@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -51,7 +52,6 @@ public class MainActivity extends AppCompatActivity {
 
     private Retrofit retrofit;
     private APIService api;
-    private Button button;
 
     private LocationBody lastSentLocation;
     @Override
@@ -74,13 +74,19 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onLocationResult(@NonNull LocationResult locationResult) {
                 super.onLocationResult(locationResult);
-
-                updateUI(locationResult.getLastLocation());
-                save(locationResult.getLastLocation());
+                Location currentLocation = locationResult.getLastLocation();
+                updateUI(currentLocation);
+                if(lastSentLocation == null) {
+                    lastSentLocation = save(currentLocation);
+                } else {
+                    if(Math.abs(lastSentLocation.getLocation().getBearing() - currentLocation.getBearing()) >= 10 ||
+                        lastSentLocation.getLocation().distanceTo(currentLocation) >= 200 ||
+                        Math.abs(lastSentLocation.getDate().toEpochSecond(ZoneOffset.UTC) - LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)) >= 600) {
+                        lastSentLocation = save(currentLocation);
+                    }
+                }
             }
         };
-
-        button = findViewById(R.id.button);
 
         swLocationUpdates.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -92,22 +98,17 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
         if(ActivityCompat.checkSelfPermission(this, Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "granted", Toast.LENGTH_LONG).show();
         } else {
             Toast.makeText(this, "not granted", Toast.LENGTH_LONG).show();
         }
 
-//        button.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View v) {
-//                save();
-//            }
-//        });
         updateGps();
     }
-    public void save(Location location) {
-        //LocalDateTime localDateTime = LocalDateTime.now();
+    public LocationBody save(Location location) {
+        LocalDateTime localDateTime = LocalDateTime.now();
         //Toast.makeText(this, localDateTime.toString(), Toast.LENGTH_LONG).show();
         if(retrofit == null || api == null) {
             retrofit = new Retrofit.Builder()
@@ -116,8 +117,8 @@ public class MainActivity extends AppCompatActivity {
 
             api = retrofit.create(APIService.class);
         }
-        Call<LocationBody> call = api.test1(location.getLongitude(), location.getLatitude(),
-                location.getAltitude(), location.getSpeed(), location.getBearing());
+        Call<LocationBody> call = api.save(location.getLongitude(), location.getLatitude(),
+                location.getAltitude(), location.getSpeed(), location.getBearing(), localDateTime);
         call.enqueue(new Callback<LocationBody>() {
             @Override
             public void onResponse(Call<LocationBody> call, Response<LocationBody> response) {
@@ -132,12 +133,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<LocationBody> call, Throwable t) {
                 //tvBearing.setText(t.getLocalizedMessage());
-                Toast.makeText(MainActivity.this, t.getMessage(), Toast.LENGTH_LONG).show();
+                //Toast.makeText(MainActivity.this, t.getMessage(), Toast.LENGTH_LONG).show();
 
             }
         });
 
-        //return new LocationBody(location, localDateTime);
+        return new LocationBody(location, localDateTime);
     }
     @SuppressLint("MissingPermission")
     private void startLocationUpdates() {
@@ -162,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
             updateGps();
         } else {
             Toast.makeText(this, "No GPS permissions", Toast.LENGTH_SHORT).show();
-            finish();
+            //finish();
         }
 
     }
