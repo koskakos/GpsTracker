@@ -10,23 +10,32 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
-import android.location.LocationRequest;
 import android.os.Bundle;
+import android.os.Looper;
+import android.view.View;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.tasks.OnSuccessListener;
 
-public class MainActivity extends AppCompatActivity implements LocListenerInterface {
+public class MainActivity extends AppCompatActivity {
 
+    private static final int PERMISSION_FINE_LOCATION = 100;
     private TextView tvLatitude, tvLongitude, tvAltitude, tvSpeed, tvBearing;
 
-    private Switch swGps;
+    private Switch swLocationUpdates;
 
-    private Location lastLocation;
-    private LocationManager locationManager;
-    private LocListener locListener;
+    private LocationRequest locationRequest;
+
+    private FusedLocationProviderClient fusedLocationProviderClient;
+    private LocationCallback locationCallback;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,44 +46,85 @@ public class MainActivity extends AppCompatActivity implements LocListenerInterf
         tvAltitude = findViewById(R.id.altitude);
         tvSpeed = findViewById(R.id.speed);
         tvBearing = findViewById(R.id.bearing);
-        swGps = findViewById(R.id.gpsSwitch);
-        init();
+        swLocationUpdates = findViewById(R.id.locationUpdatesSwitch);
+
+        locationRequest = new LocationRequest.Builder(1000).
+                setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
+                .build();
+
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+
+                updateUI(locationResult.getLastLocation());
+            }
+        };
+
+        swLocationUpdates.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(swLocationUpdates.isChecked()) {
+                    startLocationUpdates();
+                } else {
+                    stopLocationUpdates();
+                }
+            }
+        });
+
+        updateGps();
     }
 
-    public void init() {
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        locListener = new LocListener();
-        locListener.setLocListenerInterface(this);
-        checkPermissions();
+    @SuppressLint("MissingPermission")
+    private void startLocationUpdates() {
+        fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null);
+        updateGps();
+    }
+
+    private void stopLocationUpdates() {
+        tvLongitude.setText("Longitude: Not tracking");
+        tvLatitude.setText("Latitude: Not tracking");
+        tvAltitude.setText("Altitude: Not tracking");
+        tvSpeed.setText("Speed: Not tracking");
+        tvBearing.setText("Bearing: Not tracking");
+        fusedLocationProviderClient.removeLocationUpdates(locationCallback);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 100 && grantResults[0] == RESULT_OK) {
-            checkPermissions();
+
+        if(requestCode == PERMISSION_FINE_LOCATION && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            updateGps();
         } else {
-            checkPermissions();
+            Toast.makeText(this, "No GPS permissions", Toast.LENGTH_SHORT).show();
+            finish();
+        }
+
+    }
+
+    private void updateGps() {
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
+                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationProviderClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                @Override
+                public void onSuccess(Location location) {
+                    updateUI(location);
+                }
+            });
+        } else {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_FINE_LOCATION);
         }
     }
 
-    private void checkPermissions() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, 100);
-        } else {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 10, 0, locListener);
-        }
+    private void updateUI(Location location) {
+        tvLongitude.setText("Longitude: " + location.getLongitude());
+        tvLatitude.setText("Latitude: " + location.getLatitude());
+        tvAltitude.setText("Altitude: " + location.getAltitude());
+        tvSpeed.setText("Speed: " + location.getSpeed());
+        tvBearing.setText("Bearing: " + location.getBearing());
     }
 
-    @SuppressLint("SetTextI18n")
-    @Override
-    public void onLocationChanged(Location loc) {
-        tvLongitude.setText("Longitude: " + loc.getLongitude());
-        tvLatitude.setText("Latitude: " + loc.getLatitude());
-        tvAltitude.setText("Altitude: " + loc.getAltitude());
-        tvSpeed.setText("Speed: " + loc.getSpeed());
-        tvBearing.setText("Bearing: " + loc.getBearing());
-    }
 
 }

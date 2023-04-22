@@ -50,10 +50,10 @@
             android:textSize="24sp" />
 
         <Switch
-            android:id="@+id/gpsSwitch"
-            android:layout_width="103dp"
+            android:id="@+id/locationUpdatesSwitch"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="GPS"
+            android:text="Location Updates"
             android:textSize="24sp" />
     </LinearLayout>
 
